@@ -1,0 +1,19 @@
+--------------------------------------------------------------------------------------------
+Sara PC
+
+Reddit fetch: Unpredictable due to amount of posts and keywords
+Reddit proccess: 9671 posts in 03:08:45 Language distribution affects it
+Reddit proccess multithreading: 9671 posts in 02:57:01 Language distribution affects it
+Multi 15719 2:02:19<00:00
+
+Now checking whether results are equal:
+
+Sentiment Process: 9671 posts in 07:26
+Creating charts: Not measured, immediate
+
+--------------------------------------------------------------------------------------------
+Joel PC
+
+Process reddit posts 34166 02:08
+Process reddit posts multi 34166: 
+Anaylze sentiment 3968: 00:00:08

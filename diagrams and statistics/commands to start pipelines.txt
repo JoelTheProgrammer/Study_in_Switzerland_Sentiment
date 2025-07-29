@@ -1,0 +1,125 @@
+===========================================
+ Study in Switzerland Sentiment Pipeline
+===========================================
+
+This guide outlines how to run the full sentiment analysis workflow on Reddit posts, step by step. 
+It assumes you have already cloned the repository and installed all required dependencies.
+
+pip install torch --index-url https://download.pytorch.org/whl/cu121 for specific torch
+
+-------------------------------------------
+1. Step One: Download and Cache All Models
+-------------------------------------------
+
+Before anything else, all required models must be downloaded. 
+Run the scripts in `import_models/` to save the models locally:
+
+    python import_models/import_language_model.py
+    python import_models/import_translation_models.py
+    python import_models/import_bart_mnli.py
+    python import_models/import_cardiff.py
+    python import_models/import_hartmann.py
+    python import_models/import_bert_emotion.py
+    python import_models/import_longform.py
+
+These scripts will populate folders under `models/`, like:
+
+- `models/language/local_models/xlm_roberta`
+- `models/translation/local_models/`
+- `models/qa/local_models/bart_mnli`
+- `models/sentiment/local_models/`
+- `models/longformer/`
+
+Nothing else in the pipeline will work unless these are downloaded first.
+
+-------------------------------------------
+2. Step Two: Run Automated Tests (Optional)
+-------------------------------------------
+
+You can test whether everything was set up correctly by running:
+
+    python run_all_tests.py
+
+This will test tokenization, model loading, translation quality, and confidence thresholds.
+
+-------------------------------------------
+3. Step Three: Collect Reddit Posts
+-------------------------------------------
+
+To scrape Reddit using the PRAW API, run:
+
+    python reddit/reddit_fetch_posts.py
+
+This does the following:
+- Queries multilingual phrases about studying in Switzerland
+- Searches across a curated list of subreddits
+- Filters duplicates by post ID and user
+- Outputs all results to:  
+  `data/raw/raw_posts.json`
+
+You only need to do this once (or when you want fresh data).
+
+-------------------------------------------
+4. Step Four: Process the Reddit Posts
+-------------------------------------------
+
+To enrich the raw Reddit data with language detection, translation, and topic filtering:
+
+    python -m pipelines.process_reddit_posts
+
+This does the following:
+- Detects post language with XLM-R
+- Translates to English using NLLB models
+- Uses a zero-shot classifier (BART MNLI) to check whether the post is about studying in Switzerland
+- Saves results to:  
+  `data/preprocessed/processed_posts.json`
+
+This file is needed for all future steps.
+
+-------------------------------------------
+5. Step Five: Sentiment Analysis
+-------------------------------------------
+
+To classify each post's sentiment with model consensus:
+
+    python -m pipelines.analyze_sentiment
+
+What this does:
+- Applies three models to each translated text:
+    - `cardiff` (Twitter sentiment)
+    - `hartmann` (emotion)
+    - `bert_emotion`
+- Uses majority voting to get the `sentiment_consensus`
+- Outputs results to:  
+  `data/final/sentiment_posts.csv`
+
+This is the full dataset used for plotting and analysis.
+
+-------------------------------------------
+6. Step Six: Visualize and Explore Sentiment
+-------------------------------------------
+
+To open a GUI with filter options and pie chart visualizations:
+
+    python -m tools.sentiment_visualizer
+
+You can:
+- Filter by duplicate text
+- Filter multiple posts per author
+- Set language preference order
+- Sort by time or priority
+- View and save pie charts for:
+    - Language distribution
+    - Sentiment by core languages (de, en, fr, it)
+    - Sentiment by other languages
+
+-------------------------------------------
+Extras Infos
+-------------------------------------------
+
+- You can stop and re-run from any step.
+- The final `.csv` file can be used directly in Excel, R, or Python.
+- Every major function has been unit tested.
+- All models are cached locally and do not require internet once downloaded.
+
+
