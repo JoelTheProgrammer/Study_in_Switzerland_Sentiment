@@ -1,0 +1,8 @@
+# Ignore the local_model folder
+local_model/
+
+# Ignore the local_models folder
+local_models/
+
+# Ignore the cache directory
+__pycache__/
