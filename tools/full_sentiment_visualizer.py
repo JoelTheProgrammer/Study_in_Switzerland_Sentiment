@@ -135,8 +135,8 @@ class FullSentimentApp:
                     plot_pie_chart(f"Sentiment in {lang} (n={len(subset)})", sent_counts.keys(), sent_counts.values())
 
             # === New Pie Charts ===
-            reason_counts = weighted_counter(filtered, "main_reason")
-            plot_pie_chart(f"Main Reason Mentioned (n={len(filtered)})", reason_counts.keys(), reason_counts.values())
+            reason_counts = weighted_counter(filtered, "main_aspect")
+            plot_pie_chart(f"Main Aspect Mentioned (n={len(filtered)})", reason_counts.keys(), reason_counts.values())
 
             degree_counts = weighted_counter(filtered, "degree_type")
             plot_pie_chart(f"Degree Type Mentioned (n={len(filtered)})", degree_counts.keys(), degree_counts.values())
@@ -146,7 +146,7 @@ class FullSentimentApp:
             for _, row in filtered.iterrows():
                 lang = row.get("lang", "unknown")
                 lang = lang if lang in MAIN_LANGS else "other"
-                aspect = row.get("main_reason", "unknown")
+                aspect = row.get("main_aspect", "unknown")
                 sent = row.get("sentiment_majority", "UNKNOWN")
                 weight = comment_weight if row["type"] == "comment" else 1.0
                 breakdown[lang][aspect][sent] += weight
