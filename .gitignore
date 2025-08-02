@@ -6,3 +6,6 @@ local_models/
 
 # Ignore the cache directory
 __pycache__/
+
+# Ignore the .pytest_cache directory
+.pytest_cache/
