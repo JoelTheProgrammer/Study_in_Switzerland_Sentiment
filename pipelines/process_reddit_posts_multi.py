@@ -11,6 +11,9 @@ from models.qa import topic_classifier
 RAW_PATH = "data/raw/raw_posts.json"
 PROCESSED_PATH = "data/preprocessed/processed_posts.json"
 
+# Shared map to store post classifications
+parent_map = {}
+
 def enrich_post(post):
     text = f"{post.get('title', '')} {post.get('selftext', '')}".strip()
 
@@ -23,36 +26,45 @@ def enrich_post(post):
     translated = translator.translate(text, lang)
     post["translated_text"] = translated
 
-    # Determine if it's about studying in Switzerland
-    post["is_about_study"] = topic_classifier.is_about_studying_in_switzerland(translated)
+    # For comments, inherit the parent's classification
+    if post["type"] == "comment":
+        parent_id = post.get("post_id")
+        post["is_about_study"] = parent_map.get(parent_id, False)
+    else:
+        # For posts, determine classification and store it
+        is_about = topic_classifier.is_about_studying_in_switzerland(translated)
+        post["is_about_study"] = is_about
+        parent_map[post["id"]] = is_about
 
     return post
 
 def main():
     if not os.path.exists(RAW_PATH):
-        print("❌ No raw data found. Please run `fetch_posts.py` first.")
+        print("❌ No raw data found. Please run fetch_posts.py first.")
         return
 
     with open(RAW_PATH, "r", encoding="utf-8") as f:
-        raw_posts = json.load(f)
+        raw_items = json.load(f)
 
-    print(f"🧠 Processing {len(raw_posts)} posts using threads...\n")
+    # ✅ Ensure posts are processed before comments
+    raw_items.sort(key=lambda x: 0 if x["type"] == "post" else 1)
+
+    print(f"🧠 Processing {len(raw_items)} items (posts + comments) using threads...\n")
 
     enriched = []
     with ThreadPoolExecutor(max_workers=8) as executor:
-        futures = {executor.submit(enrich_post, post): post for post in raw_posts}
-        for future in tqdm(as_completed(futures), total=len(futures), desc="🔄 Enriching posts"):
+        futures = {executor.submit(enrich_post, item): item for item in raw_items}
+        for future in tqdm(as_completed(futures), total=len(futures), desc="🔄 Enriching items"):
             try:
                 enriched.append(future.result())
             except Exception as e:
-                print(f"⚠️ Error enriching post: {e}")
+                print(f"⚠️ Error enriching item: {e}")
 
     os.makedirs(os.path.dirname(PROCESSED_PATH), exist_ok=True)
     with open(PROCESSED_PATH, "w", encoding="utf-8") as f:
         json.dump(enriched, f, ensure_ascii=False, indent=2)
 
-    print(f"\n✅ Saved {len(enriched)} enriched posts to '{PROCESSED_PATH}'")
+    print(f"\n✅ Saved {len(enriched)} enriched items to '{PROCESSED_PATH}'")
 
 if __name__ == "__main__":
     main()
- 
