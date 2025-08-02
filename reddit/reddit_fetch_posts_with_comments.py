@@ -20,7 +20,7 @@ def fetch_reddit_posts(queries, subreddits, limit=1000):
             print(f" → Query: {q}")
             try:
                 for post in reddit.subreddit(subreddit).search(q, sort="new", limit=limit):
-                    if not post.author or post.score > -10:
+                    if not post.author or post.score < -10:
                         continue
 
                     post_key = (post.title.strip(), post.selftext.strip())
@@ -39,7 +39,7 @@ def fetch_reddit_posts(queries, subreddits, limit=1000):
                         "score": post.score,
                         "url": post.url,
                         "created_utc": post.created_utc,
-                        "type": "post"
+                        "type": "post" 
                     }
                     all_items.append(post_data)
 

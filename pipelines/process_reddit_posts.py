@@ -8,8 +8,8 @@ from models.qa import topic_classifier
 RAW_PATH = "data/raw/raw_posts.json"
 PROCESSED_PATH = "data/preprocessed/processed_posts.json"
 
-def enrich_post(post):
-    """Enrich a single Reddit post with language, translation, and topic classification."""
+def enrich_post(post, parent_map):
+    """Enrich a single Reddit item (post or comment) with language, translation, and topic classification."""
     text = f"{post.get('title', '')} {post.get('selftext', '')}".strip()
 
     # Language detection
@@ -17,12 +17,18 @@ def enrich_post(post):
     post["lang"] = lang
     post["lang_confidence"] = conf
 
-    # Translation to English (if needed)
+    # Translation to English
     translated = translator.translate(text, lang)
     post["translated_text"] = translated
 
-    # Determine if it's about studying in Switzerland
-    post["is_about_study"] = topic_classifier.is_about_studying_in_switzerland(translated)
+    if post["type"] == "post":
+        # Classify post normally
+        post["is_about_study"] = topic_classifier.is_about_studying_in_switzerland(translated)
+        parent_map[post["id"]] = post["is_about_study"]
+    else:
+        # Comment: inherit classification from its parent post
+        parent_id = post.get("post_id")
+        post["is_about_study"] = parent_map.get(parent_id, False)
 
     return post
 
@@ -32,20 +38,21 @@ def main():
         return
 
     with open(RAW_PATH, "r", encoding="utf-8") as f:
-        raw_posts = json.load(f)
-        #raw_posts = [p for p in raw_posts if p["type"] == "post"]  # or "comment"
+        raw_items = json.load(f)
 
+    # Ensure posts are processed before comments
+    raw_items.sort(key=lambda x: 0 if x["type"] == "post" else 1)
 
-    print(f"🧠 Processing {len(raw_posts)} posts...\n")
+    print(f"🧠 Processing {len(raw_items)} posts and comments...\n")
 
-    # Use tqdm for progress bar
-    enriched = [enrich_post(post) for post in tqdm(raw_posts, desc="🔄 Enriching posts")]
+    parent_map = {}
+    enriched = [enrich_post(item, parent_map) for item in tqdm(raw_items, desc="🔄 Enriching items")]
 
     os.makedirs(os.path.dirname(PROCESSED_PATH), exist_ok=True)
     with open(PROCESSED_PATH, "w", encoding="utf-8") as f:
         json.dump(enriched, f, ensure_ascii=False, indent=2)
 
-    print(f"\n✅ Saved {len(enriched)} enriched posts to '{PROCESSED_PATH}'")
+    print(f"\n✅ Saved {len(enriched)} enriched items to '{PROCESSED_PATH}'")
 
 if __name__ == "__main__":
     main()

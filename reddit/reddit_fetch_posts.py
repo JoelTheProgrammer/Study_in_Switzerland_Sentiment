@@ -81,4 +81,4 @@ if __name__ == "__main__":
         "AskEurope"
     ]
 
-    fetch_reddit_posts(queries, subreddits, limit=1000)
+    fetch_reddit_posts(queries, subreddits, limit=2)
