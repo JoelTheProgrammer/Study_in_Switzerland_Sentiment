@@ -1,11 +1,10 @@
-# Ignore the local_model folder
-local_model/
+# Ignore the data directory
+data/
 
-# Ignore the local_models folder
+# Ignore model folders
+local_model/
 local_models/
 
-# Ignore the cache directory
+# Ignore caches
 __pycache__/
-
-# Ignore the .pytest_cache directory
 .pytest_cache/
