@@ -23,6 +23,11 @@ def fetch_reddit_posts(queries, subreddits, limit=1000):
                     if not post.author or post.score < -10:
                         continue
 
+                    # Skip posts with too few words (title excluded)
+                    post_word_count = word_count(post.selftext)
+                    if post_word_count < 20:
+                        continue  # Skip post and its comments entirely
+
                     post_key = (post.title.strip(), post.selftext.strip())
                     if post_key in seen_post_keys:
                         continue
@@ -48,6 +53,11 @@ def fetch_reddit_posts(queries, subreddits, limit=1000):
                     for comment in post.comments.list():
                         if not comment.author:
                             continue
+
+                        # Skip comments with too few words
+                        if word_count(comment.body) < 10:
+                            continue
+
                         comment_data = {
                             "id": comment.id,
                             "post_id": post.id,
@@ -117,3 +127,7 @@ if __name__ == "__main__":
     ]
 
     fetch_reddit_posts(queries, subreddits, limit=15)
+
+def word_count(text: str) -> int:
+    """Count words in a given text."""
+    return len(text.strip().split())
