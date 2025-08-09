@@ -1,44 +1,48 @@
 {
-  "primary": [
+  "general": [
     "studyabroad",
+    "studyinswitzerland",
+    "studyineurope",
+    "erasmus",
     "university",
-    "indians_studyabroad"
-  ],
-  "switzerland": [
-    "switzerland",
-    "askswitzerland",
-    "suisse",
-    "svizzera"
-  ],
-  "cities": [
-    "zurich",
-    "geneva",
-    "lausanne",
-    "basel",
-    "bern",
-    "ticino"
-  ],
-  "academia_and_students": [
-    "academia",
+    "indians_studyabroad",
+    "cscareerquestionseu",
+    "languagelearning",
+    "askeurope",
     "askacademia",
     "internationalstudents",
-    "gradadmissions",
-    "applyingtocollege",
-    "scholarships"
+    "engineeringstudents",
+    "mba",
+    "phd"
+  ],
+  "swiss": [
+    "switzerland",
+    "askswitzerland",
+    "schwiiz",
+    "zurich",
+    "basel",
+    "bern",
+    "suisse",
+    "geneva",
+    "lausanne",
+    "svizzera",
+    "ticino",
+    "ethz",
+    "uzh",
+    "epfl"
   ],
   "language_culture": [
     "de",
+    "germany",
+    "german",
+    "frankfurt",
+    "munich",
     "france",
+    "paris",
+    "lyon",
     "italy",
-    "francophonie",
-    "languagelearning"
-  ],
-  "europe_broad": [
-    "askeurope",
-    "europe"
-  ],
-  "swiss_universities_optional": [
-    "ethz",
-    "epfl"
+    "torino",
+    "austria",
+    "francophonie"
   ]
 }

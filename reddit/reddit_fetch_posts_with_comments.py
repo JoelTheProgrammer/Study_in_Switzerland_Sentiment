@@ -3,20 +3,33 @@ import praw
 import json
 import os
 
-def load_json_list(file_path):
-    """Load a flattened list from a JSON file (which may contain categories)."""
+def load_json_list(file_path, limit=None):
+    """
+    Load a flattened list from a JSON file (which may contain categories).
+    
+    Args:
+        file_path (str): Path to the JSON file.
+        limit (int, optional): If set, only return the first `limit` items.
+    """
+    import json
+
     with open(file_path, "r", encoding="utf-8") as f:
         data = json.load(f)
+
     if isinstance(data, dict):
-        # Flatten all category lists
         items = []
         for values in data.values():
             items.extend(values)
-        return sorted(set(items))  # unique, sorted
+        items = sorted(set(items))
     elif isinstance(data, list):
-        return sorted(set(data))
+        items = sorted(set(data))
     else:
         raise ValueError(f"Unexpected JSON format in {file_path}")
+
+    if limit is not None:
+        return items[:limit]
+    return items
+
 
 def word_count(text: str) -> int:
     """Count words in a given text."""
@@ -101,15 +114,21 @@ def fetch_reddit_posts(queries, subreddits, limit=1000):
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(all_items, f, ensure_ascii=False, indent=2)
 
-    print(f"\n✅ Saved {len(all_items)} items (posts + comments) to '{output_path}'")
+    post_count = sum(1 for item in all_items if item.get("type") == "post")
+    comment_count = sum(1 for item in all_items if item.get("type") == "comment")
+
+    print(f"\n✅ Saved {len(all_items)} items "
+        f"({post_count} posts + {comment_count} comments) "
+        f"to '{output_path}'")
+
 
 if __name__ == "__main__":
     # Load from JSON files
     keywords_path = os.path.join(os.path.dirname(__file__), "keywords.json")
     subreddits_path = os.path.join(os.path.dirname(__file__), "subreddits.json")
 
-    queries = load_json_list(keywords_path)
-    subreddits = load_json_list(subreddits_path)
+    queries = load_json_list(keywords_path, limit=5)
+    subreddits = load_json_list(subreddits_path, limit=5)
 
     print(f"Loaded {len(queries)} search queries and {len(subreddits)} subreddits.")
     fetch_reddit_posts(queries, subreddits, limit=15)
