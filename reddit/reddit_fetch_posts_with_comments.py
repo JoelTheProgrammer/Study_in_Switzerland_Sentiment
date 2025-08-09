@@ -3,6 +3,25 @@ import praw
 import json
 import os
 
+def load_json_list(file_path):
+    """Load a flattened list from a JSON file (which may contain categories)."""
+    with open(file_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    if isinstance(data, dict):
+        # Flatten all category lists
+        items = []
+        for values in data.values():
+            items.extend(values)
+        return sorted(set(items))  # unique, sorted
+    elif isinstance(data, list):
+        return sorted(set(data))
+    else:
+        raise ValueError(f"Unexpected JSON format in {file_path}")
+
+def word_count(text: str) -> int:
+    """Count words in a given text."""
+    return len(text.strip().split())
+
 def fetch_reddit_posts(queries, subreddits, limit=1000):
     reddit = praw.Reddit(
         client_id="wN5a9YGRPB-WPxlGOdS3vQ",
@@ -11,7 +30,6 @@ def fetch_reddit_posts(queries, subreddits, limit=1000):
     )
 
     seen_post_keys = set()
-
     all_items = []
 
     for subreddit in subreddits:
@@ -48,7 +66,7 @@ def fetch_reddit_posts(queries, subreddits, limit=1000):
                     }
                     all_items.append(post_data)
 
-                    # Fetch and add top-level comments
+                    # Fetch and add top-level comments (only if post passed)
                     post.comments.replace_more(limit=0)
                     for comment in post.comments.list():
                         if not comment.author:
@@ -85,49 +103,13 @@ def fetch_reddit_posts(queries, subreddits, limit=1000):
 
     print(f"\n✅ Saved {len(all_items)} items (posts + comments) to '{output_path}'")
 
-
 if __name__ == "__main__":
-    queries = [
-        # English
-        "study in switzerland", "university in switzerland", "swiss student visa",
-        # German
-        "Studium in der Schweiz", "Universität Schweiz", "Studentenvisum Schweiz",
-        # French
-        "étudier en Suisse", "etudier en suisse", "étudier en suisse pour les africains",
-        "étudier médecine en suisse pour les étrangers", "étudier en suisse prix",
-        "étudier en suisse pour les sénégalais", "étudier en suisse pour les étrangers",
-        "comment faire pour étudier en suisse", "étudier en suisse en français",
-        "étudier en suisse avantage", "université suisse", "visa étudiant suisse",
-        "universités suisses", "les universités suisses francophones",
-        "les universités publiques suisses francophones", "les universités suisses",
-        "université de suisse pour étranger",
-        # Italian
-        "studiare in Svizzera", "studiare in svizzera", "studiare infermieristica in svizzera",
-        "studiare medicina in svizzera", "studiare psicologia in svizzera",
-        "studiare fisioterapia in svizzera", "studiare in svizzera università",
-        "studiare in svizzera costi", "lavorare e studiare in svizzera",
-        # Spanish
-        "como estudiar en suiza",
-        # Related
-        "università svizzere", "università telematiche svizzere riconosciute dal miur",
-        "migliori università svizzere", "ranking università svizzere",
-        "università svizzera", "visto studentesco"
-    ]
+    # Load from JSON files
+    keywords_path = os.path.join(os.path.dirname(__file__), "keywords.json")
+    subreddits_path = os.path.join(os.path.dirname(__file__), "subreddits.json")
 
-    subreddits = [
-        # Primary subreddits
-        "studyAbroad", "university", "Indians_StudyAbroad",
-        # Switzerland and region-specific
-        "Switzerland", "AskSwitzerland", "Suisse", "svizzera", "ticino",
-        "basel", "zurich", "lausanne", "bern",
-        # Language/culture
-        "de", "france", "italy", "francophonie",
-        # Broader
-        "AskEurope"
-    ]
+    queries = load_json_list(keywords_path)
+    subreddits = load_json_list(subreddits_path)
 
+    print(f"Loaded {len(queries)} search queries and {len(subreddits)} subreddits.")
     fetch_reddit_posts(queries, subreddits, limit=15)
-
-def word_count(text: str) -> int:
-    """Count words in a given text."""
-    return len(text.strip().split())
