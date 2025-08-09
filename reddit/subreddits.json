@@ -1,0 +1,44 @@
+{
+  "primary": [
+    "studyabroad",
+    "university",
+    "indians_studyabroad"
+  ],
+  "switzerland": [
+    "switzerland",
+    "askswitzerland",
+    "suisse",
+    "svizzera"
+  ],
+  "cities": [
+    "zurich",
+    "geneva",
+    "lausanne",
+    "basel",
+    "bern",
+    "ticino"
+  ],
+  "academia_and_students": [
+    "academia",
+    "askacademia",
+    "internationalstudents",
+    "gradadmissions",
+    "applyingtocollege",
+    "scholarships"
+  ],
+  "language_culture": [
+    "de",
+    "france",
+    "italy",
+    "francophonie",
+    "languagelearning"
+  ],
+  "europe_broad": [
+    "askeurope",
+    "europe"
+  ],
+  "swiss_universities_optional": [
+    "ethz",
+    "epfl"
+  ]
+}
