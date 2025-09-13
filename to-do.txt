@@ -1,0 +1,2 @@
+Add visualizer for sentiment over time
+Add visualizer for sentiment per reddit (maybe per language)
