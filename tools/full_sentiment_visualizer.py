@@ -1,36 +1,29 @@
-import tkinter as tk
-from tkinter import ttk, messagebox
-import pandas as pd
-import matplotlib.pyplot as plt
+import argparse
 from collections import Counter, defaultdict
+from pathlib import Path
 
-CSV_PATH = "data/final/final_posts.csv"
-data = pd.read_csv(CSV_PATH)
+import matplotlib.pyplot as plt
+import pandas as pd
+import tkinter as tk
+from tkinter import messagebox, ttk
 
 MAIN_LANGS = ["de", "en", "fr", "it"]
 
+
 def filter_data(df, allow_duplicates, allow_multiple_per_author, lang_order, sort_order, prioritize, source_mode):
-    """
-    source_mode: one of ["Posts and comments", "Posts", "Comments"]
-    """
-    # keep only study-related
     df = df[df["is_about_study"] == True]
 
-    # source filter
     if source_mode == "Posts":
         df = df[df["type"] == "post"]
     elif source_mode == "Comments":
         df = df[df["type"] == "comment"]
-    # else: both
 
-    # de-dup options
     if not allow_multiple_per_author:
         df = df.drop_duplicates(subset=["author"], keep="first")
 
     if not allow_duplicates:
         df = df.drop_duplicates(subset=["title", "selftext"], keep="first")
 
-    # ordering / prioritization
     if prioritize == "Recency":
         df = df.sort_values("created_utc", ascending=(sort_order == "Oldest first"))
     else:
@@ -39,6 +32,7 @@ def filter_data(df, allow_duplicates, allow_multiple_per_author, lang_order, sor
 
     return df
 
+
 def plot_pie_chart(title, labels, sizes):
     plt.figure()
     plt.title(title)
@@ -46,8 +40,8 @@ def plot_pie_chart(title, labels, sizes):
     plt.axis("equal")
     plt.show()
 
+
 def plot_stacked_bar(title, breakdown):
-    """Draws a stacked bar chart for aspect × sentiment for one language."""
     aspects = list(breakdown.keys())
     sentiments = set()
     for asp in breakdown.values():
@@ -68,10 +62,19 @@ def plot_stacked_bar(title, breakdown):
     plt.tight_layout()
     plt.show()
 
+
 class FullSentimentApp:
-    def __init__(self, root):
+    def __init__(self, root, csv_path: Path):
         self.root = root
         self.root.title("Full Sentiment Dashboard")
+        self.csv_path = csv_path
+
+        if not self.csv_path.exists():
+            messagebox.showerror("Missing file", f"Could not find:\n{self.csv_path}")
+            self.root.after(100, self.root.destroy)
+            return
+
+        self.data = pd.read_csv(self.csv_path)
 
         self.allow_dupes = tk.BooleanVar(value=True)
         self.allow_multi_author = tk.BooleanVar(value=True)
@@ -79,13 +82,11 @@ class FullSentimentApp:
         tk.Checkbutton(root, text="Allow duplicate posts", variable=self.allow_dupes).pack(anchor="w")
         tk.Checkbutton(root, text="Allow multiple posts from same author", variable=self.allow_multi_author).pack(anchor="w")
 
-        # Source selector
         tk.Label(root, text="Data source:").pack(anchor="w")
         self.source_mode = ttk.Combobox(root, values=["Posts and comments", "Posts", "Comments"], state="readonly")
         self.source_mode.current(0)
         self.source_mode.pack(fill="x")
 
-        # Comment importance
         tk.Label(root, text="Comment Importance:").pack(anchor="w")
         self.comment_weight = ttk.Combobox(root, values=["Lower", "Equal", "Higher"], state="readonly")
         self.comment_weight.current(1)
@@ -112,7 +113,7 @@ class FullSentimentApp:
         try:
             lang_order = [l.strip() for l in self.lang_entry.get().split(",") if l.strip()]
             filtered = filter_data(
-                data.copy(),
+                self.data.copy(),
                 allow_duplicates=self.allow_dupes.get(),
                 allow_multiple_per_author=self.allow_multi_author.get(),
                 lang_order=lang_order,
@@ -125,7 +126,6 @@ class FullSentimentApp:
                 messagebox.showwarning("No Data", "No posts match the selected filters.")
                 return
 
-            # weight only matters if both posts + comments are present
             mode = self.source_mode.get()
             if self.comment_weight.get() == "Lower":
                 comment_weight = 0.5
@@ -137,19 +137,16 @@ class FullSentimentApp:
             def weighted_counter(df, field):
                 counts = Counter()
                 for _, row in df.iterrows():
-                    # if we’re only looking at posts OR only comments, weight is always 1.0
                     weight = 1.0 if mode in ("Posts", "Comments") else (comment_weight if row["type"] == "comment" else 1.0)
                     counts[row.get(field, "UNKNOWN")] += weight
                 return counts
 
-            # === Language distribution
             lang_counts = weighted_counter(filtered, "lang")
             grouped_counts = Counter()
             for lang, count in lang_counts.items():
                 grouped_counts[lang if lang in MAIN_LANGS else "other"] += count
             plot_pie_chart(f"Language Distribution (n={len(filtered)})", list(grouped_counts.keys()), list(grouped_counts.values()))
 
-            # === Sentiment per language
             for lang in MAIN_LANGS + ["other"]:
                 if lang == "other":
                     subset = filtered[(~filtered["lang"].isin(MAIN_LANGS)) & (filtered["lang"] != "unknown")]
@@ -159,14 +156,12 @@ class FullSentimentApp:
                     sent_counts = weighted_counter(subset, "sentiment_majority")
                     plot_pie_chart(f"Sentiment in {lang} (n={len(subset)})", list(sent_counts.keys()), list(sent_counts.values()))
 
-            # === Main aspect & degree pies
             reason_counts = weighted_counter(filtered, "main_aspect")
             plot_pie_chart(f"Main Aspect Mentioned (n={len(filtered)})", list(reason_counts.keys()), list(reason_counts.values()))
 
             degree_counts = weighted_counter(filtered, "degree_type")
             plot_pie_chart(f"Degree Type Mentioned (n={len(filtered)})", list(degree_counts.keys()), list(degree_counts.values()))
 
-            # === Cross-Stats: Sentiment × Aspect × Language
             breakdown = defaultdict(lambda: defaultdict(lambda: Counter()))
             for _, row in filtered.iterrows():
                 lang = row.get("lang", "unknown")
@@ -179,9 +174,8 @@ class FullSentimentApp:
             for lang, aspects in breakdown.items():
                 plot_stacked_bar(f"Aspect × Sentiment for {lang}", aspects)
 
-            # Global stacked bar
             global_aspects = defaultdict(Counter)
-            for lang, aspects in breakdown.items():
+            for _, aspects in breakdown.items():
                 for asp, sents in aspects.items():
                     for sent, val in sents.items():
                         global_aspects[asp][sent] += val
@@ -190,7 +184,19 @@ class FullSentimentApp:
         except Exception as e:
             messagebox.showerror("Error", str(e))
 
-if __name__ == "__main__":
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--output-dir", required=True)
+    args = parser.parse_args()
+
+    output_dir = Path(args.output_dir).resolve()
+    csv_path = output_dir / "final" / "final_posts.csv"
+
     root = tk.Tk()
-    app = FullSentimentApp(root)
+    app = FullSentimentApp(root, csv_path)
     root.mainloop()
+
+
+if __name__ == "__main__":
+    main()
