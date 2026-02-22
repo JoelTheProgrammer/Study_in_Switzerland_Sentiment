@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import os
 import queue
 import subprocess
 import sys
@@ -15,19 +14,20 @@ class LauncherApp:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title("Study Sentiment Pipeline Launcher")
-        self.root.geometry("980x700")
+        self.root.geometry("980x720")
 
         self.repo_root = Path(__file__).resolve().parent
 
         self.input_dir_var = tk.StringVar(value=str(self.repo_root / "data_input"))
         self.output_dir_var = tk.StringVar(value=str(self.repo_root / "data_output"))
         self.torch_var = tk.StringVar(value="cu121")
-        self.running = False
+        self.status_var = tk.StringVar(value="Ready")
 
-        self.log_queue: queue.Queue[str] = queue.Queue()
+        self.running = False
+        self.log_queue: queue.Queue[tuple[str, str]] = queue.Queue()
 
         self._build_ui()
-        self.root.after(100, self._drain_log_queue)
+        self.root.after(80, self._drain_log_queue)
 
     def _build_ui(self) -> None:
         main = ttk.Frame(self.root, padding=10)
@@ -50,14 +50,13 @@ class LauncherApp:
         setup_frame.pack(fill="x", pady=(0, 10))
 
         ttk.Label(setup_frame, text="Torch").grid(row=0, column=0, sticky="w")
-        self.torch_combo = ttk.Combobox(
+        ttk.Combobox(
             setup_frame,
             textvariable=self.torch_var,
             values=["cpu", "cu118", "cu121", "cu124"],
             state="readonly",
             width=10,
-        )
-        self.torch_combo.grid(row=0, column=1, sticky="w", padx=(5, 20))
+        ).grid(row=0, column=1, sticky="w", padx=(5, 20))
 
         ttk.Button(setup_frame, text="Install dependencies", command=self.install_deps).grid(row=0, column=2, padx=5)
         ttk.Button(setup_frame, text="Download models", command=self.download_models).grid(row=0, column=3, padx=5)
@@ -69,7 +68,6 @@ class LauncherApp:
         ttk.Button(pipeline_frame, text="2) Process Reddit", command=self.run_process_reddit).grid(row=0, column=1, padx=5, pady=5, sticky="we")
         ttk.Button(pipeline_frame, text="3) Analyze Sentiment", command=self.run_analyze_sentiment).grid(row=0, column=2, padx=5, pady=5, sticky="we")
         ttk.Button(pipeline_frame, text="4) Analyze Topics", command=self.run_analyze_topics).grid(row=0, column=3, padx=5, pady=5, sticky="we")
-
         ttk.Button(pipeline_frame, text="Run all pipelines", command=self.run_all_pipelines).grid(row=1, column=0, columnspan=4, padx=5, pady=(8, 5), sticky="we")
 
         for i in range(4):
@@ -77,13 +75,20 @@ class LauncherApp:
 
         tools_frame = ttk.LabelFrame(main, text="Tools", padding=10)
         tools_frame.pack(fill="x", pady=(0, 10))
-
         ttk.Button(tools_frame, text="Open sentiment visualizer", command=self.open_visualizer).pack(anchor="w")
+
+        progress_frame = ttk.LabelFrame(main, text="Progress", padding=10)
+        progress_frame.pack(fill="x", pady=(0, 10))
+
+        self.progress = ttk.Progressbar(progress_frame, mode="indeterminate")
+        self.progress.pack(fill="x")
+
+        ttk.Label(progress_frame, textvariable=self.status_var).pack(anchor="w", pady=(6, 0))
 
         log_frame = ttk.LabelFrame(main, text="Logs", padding=10)
         log_frame.pack(fill="both", expand=True)
 
-        self.log_text = tk.Text(log_frame, wrap="word", height=20)
+        self.log_text = tk.Text(log_frame, wrap="word", height=20, state="disabled")
         self.log_text.pack(side="left", fill="both", expand=True)
 
         scrollbar = ttk.Scrollbar(log_frame, orient="vertical", command=self.log_text.yview)
@@ -92,40 +97,45 @@ class LauncherApp:
 
         bottom = ttk.Frame(main)
         bottom.pack(fill="x", pady=(8, 0))
-
         ttk.Button(bottom, text="Clear logs", command=self.clear_logs).pack(side="left")
-        self.status_var = tk.StringVar(value="Ready")
-        ttk.Label(bottom, textvariable=self.status_var).pack(side="right")
+
+    def _append_log_text(self, text: str) -> None:
+        self.log_text.configure(state="normal")
+        self.log_text.insert("end", text)
+        self.log_text.see("end")
+        self.log_text.configure(state="disabled")
 
     def log(self, msg: str) -> None:
-        self.log_queue.put(msg)
+        self.log_queue.put(("line", msg))
 
     def _drain_log_queue(self) -> None:
         try:
             while True:
-                msg = self.log_queue.get_nowait()
-                self.log_text.insert("end", msg + "\n")
-                self.log_text.see("end")
+                kind, msg = self.log_queue.get_nowait()
+                if kind == "line":
+                    self._append_log_text(msg + "\n")
         except queue.Empty:
             pass
-        self.root.after(100, self._drain_log_queue)
+        self.root.after(80, self._drain_log_queue)
 
     def clear_logs(self) -> None:
+        self.log_text.configure(state="normal")
         self.log_text.delete("1.0", "end")
+        self.log_text.configure(state="disabled")
 
     def pick_input_dir(self) -> None:
-        chosen = filedialog.askdirectory(
-            title="Choose input dataset folder",
-            initialdir=self.input_dir_var.get() if Path(self.input_dir_var.get()).exists() else str(self.repo_root / "data_input"),
-        )
+        initial = self.input_dir_var.get()
+        if not Path(initial).exists():
+            initial = str(self.repo_root / "data_input")
+        chosen = filedialog.askdirectory(title="Choose input dataset folder", initialdir=initial)
         if chosen:
             self.input_dir_var.set(chosen)
 
     def pick_output_dir(self) -> None:
-        chosen = filedialog.askdirectory(
-            title="Choose output dataset folder",
-            initialdir=self.output_dir_var.get() if Path(self.output_dir_var.get()).exists() else str(self.repo_root / "data_output"),
-        )
+        initial = self.output_dir_var.get()
+        if not Path(initial).exists():
+            initial = str(self.repo_root / "data_output")
+        chosen = filedialog.askdirectory(title="Choose output dataset folder", initialdir=initial)
         if chosen:
             self.output_dir_var.set(chosen)
 
@@ -143,18 +153,39 @@ class LauncherApp:
     def _script_path(self, *parts: str) -> Path:
         return self.repo_root.joinpath(*parts)
 
+    def _find_script(self, candidates: list[str]) -> Path | None:
+        for rel in candidates:
+            p = self._script_path(*rel.split("/"))
+            if p.exists():
+                return p
+        messagebox.showerror("Missing script", "Could not find any of these script paths:\n\n" + "\n".join(candidates))
+        return None
+
+    def _set_running_ui(self, running: bool, title: str = "") -> None:
+        if running:
+            self.status_var.set(f"Running: {title}")
+            self.progress.start(12)
+        else:
+            self.progress.stop()
+            self.status_var.set("Ready")
+
     def _run_commands_async(self, commands: list[list[str]], title: str) -> None:
         if self.running:
             messagebox.showwarning("Busy", "Another task is already running.")
             return
 
         self.running = True
-        self.status_var.set(f"Running: {title}")
-        self.log(f"\n=== {title} ===")
+        self._set_running_ui(True, title)
+        self.log("")
+        self.log(f"=== {title} ===")
 
         def worker() -> None:
             try:
-                for cmd in commands:
+                total = len(commands)
+                for idx, cmd in enumerate(commands, start=1):
+                    step_label = f"{title} ({idx}/{total})"
+                    self.root.after(0, lambda s=step_label: self.status_var.set(f"Running: {s}"))
+
                     self.log("> " + " ".join(cmd))
                     process = subprocess.Popen(
                         cmd,
@@ -172,7 +203,13 @@ class LauncherApp:
                     rc = process.wait()
                     if rc != 0:
                         self.log(f"[ERROR] Command failed with exit code {rc}")
-                        self.root.after(0, lambda: messagebox.showerror("Command failed", f"Exit code {rc}\n\n{' '.join(cmd)}"))
+                        self.root.after(
+                            0,
+                            lambda c=cmd, code=rc: messagebox.showerror(
+                                "Command failed",
+                                f"Exit code {code}\n\n{' '.join(c)}",
+                            ),
+                        )
                         break
                 else:
                     self.log("[OK] Finished")
@@ -181,25 +218,21 @@ class LauncherApp:
                 self.root.after(0, lambda: messagebox.showerror("Error", str(e)))
             finally:
                 self.running = False
-                self.root.after(0, lambda: self.status_var.set("Ready"))
+                self.root.after(0, lambda: self._set_running_ui(False))
 
         threading.Thread(target=worker, daemon=True).start()
 
     def install_deps(self) -> None:
-        script = self._script_path("config", "install_deps.py")
-        if not script.exists():
-            messagebox.showerror("Missing script", f"Could not find:\n{script}")
+        script = self._find_script(["config/install_deps.py"])
+        if not script:
             return
-
         cmd = [sys.executable, str(script), "--torch", self.torch_var.get()]
         self._run_commands_async([cmd], "Install dependencies")
 
     def download_models(self) -> None:
-        script = self._script_path("config", "download_all_models.py")
-        if not script.exists():
-            messagebox.showerror("Missing script", f"Could not find:\n{script}")
+        script = self._find_script(["config/download_all_models.py"])
+        if not script:
             return
-
         cmd = [sys.executable, str(script)]
         self._run_commands_async([cmd], "Download all models")
 
@@ -226,7 +259,10 @@ class LauncherApp:
             return
         input_dir, output_dir = dirs
 
-        script = self._find_script(["pipelines/process_reddit_posts.py", "process_reddit_posts.py"])
+        script = self._find_script([
+            "pipelines/process_reddit_posts.py",
+            "process_reddit_posts.py",
+        ])
         if not script:
             return
 
@@ -239,7 +275,10 @@ class LauncherApp:
             return
         input_dir, output_dir = dirs
 
-        script = self._find_script(["pipelines/analyze_sentiment.py", "analyze_sentiment.py"])
+        script = self._find_script([
+            "pipelines/analyze_sentiment.py",
+            "analyze_sentiment.py",
+        ])
         if not script:
             return
 
@@ -252,7 +291,10 @@ class LauncherApp:
             return
         input_dir, output_dir = dirs
 
-        script = self._find_script(["pipelines/analyze_topics.py", "analyze_topics.py"])
+        script = self._find_script([
+            "pipelines/analyze_topics.py",
+            "analyze_topics.py",
+        ])
         if not script:
             return
 
@@ -265,10 +307,23 @@ class LauncherApp:
             return
         input_dir, output_dir = dirs
 
-        fetch_script = self._find_script(["pipelines/reddit_fetch_posts_with_comments.py", "reddit_fetch_posts_with_comments.py"])
-        process_script = self._find_script(["pipelines/process_reddit_posts.py", "process_reddit_posts.py"])
-        sentiment_script = self._find_script(["pipelines/analyze_sentiment.py", "analyze_sentiment.py"])
-        topics_script = self._find_script(["pipelines/analyze_topics.py", "analyze_topics.py"])
+        fetch_script = self._find_script([
+            "reddit/reddit_fetch_posts_with_comments.py",
+            "pipelines/reddit_fetch_posts_with_comments.py",
+            "reddit_fetch_posts_with_comments.py",
+        ])
+        process_script = self._find_script([
+            "pipelines/process_reddit_posts.py",
+            "process_reddit_posts.py",
+        ])
+        sentiment_script = self._find_script([
+            "pipelines/analyze_sentiment.py",
+            "analyze_sentiment.py",
+        ])
+        topics_script = self._find_script([
+            "pipelines/analyze_topics.py",
+            "analyze_topics.py",
+        ])
 
         if not all([fetch_script, process_script, sentiment_script, topics_script]):
             return
@@ -287,23 +342,15 @@ class LauncherApp:
             return
         _, output_dir = dirs
 
-        script = self._find_script(["tools/full_sentiment_visualizer.py", "full_sentiment_visualizer.py"])
+        script = self._find_script([
+            "tools/full_sentiment_visualizer.py",
+            "full_sentiment_visualizer.py",
+        ])
         if not script:
             return
 
         cmd = [sys.executable, str(script), "--output-dir", str(output_dir)]
         self._run_commands_async([cmd], "Open sentiment visualizer")
-
-    def _find_script(self, candidates: list[str]) -> Path | None:
-        for rel in candidates:
-            p = self._script_path(*rel.split("/"))
-            if p.exists():
-                return p
-        messagebox.showerror(
-            "Missing script",
-            "Could not find any of these script paths:\n\n" + "\n".join(candidates)
-        )
-        return None
 
 
 def main() -> None:
@@ -314,8 +361,7 @@ def main() -> None:
             style.theme_use("clam")
     except Exception:
         pass
-
-    app = LauncherApp(root)
+    LauncherApp(root)
     root.mainloop()
 
 

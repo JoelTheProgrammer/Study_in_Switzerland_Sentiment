@@ -46,6 +46,7 @@ def load_reddit_api_config(input_dir: Path):
     cfg.setdefault("min_post_words", 20)
     cfg.setdefault("min_comment_words", 10)
     cfg.setdefault("min_post_score", -10)
+    cfg.setdefault("progress_every_n_items", 100)
 
     return cfg
 
@@ -66,14 +67,27 @@ def fetch_reddit_posts(queries, subreddits, output_dir: Path, reddit_cfg):
     min_post_words = int(reddit_cfg["min_post_words"])
     min_comment_words = int(reddit_cfg["min_comment_words"])
     min_post_score = int(reddit_cfg["min_post_score"])
+    progress_every_n_items = max(1, int(reddit_cfg["progress_every_n_items"]))
 
     seen_post_keys = set()
     all_items = []
 
-    for subreddit in subreddits:
-        print(f"Searching r/{subreddit}...")
-        for q in queries:
-            print(f"  Query: {q}")
+    total_subreddits = len(subreddits)
+    total_queries = len(queries)
+    total_pairs = total_subreddits * total_queries
+    pair_counter = 0
+
+    for subreddit_idx, subreddit in enumerate(subreddits, start=1):
+        print(f"[Reddit] Subreddit {subreddit_idx}/{total_subreddits}: r/{subreddit}", flush=True)
+
+        for query_idx, q in enumerate(queries, start=1):
+            pair_counter += 1
+            print(
+                f"[Reddit] Query {query_idx}/{total_queries} in r/{subreddit} "
+                f"(overall {pair_counter}/{total_pairs}): {q}",
+                flush=True,
+            )
+
             try:
                 for post in reddit.subreddit(subreddit).search(q, sort="new", limit=search_limit):
                     if not post.author or post.score < min_post_score:
@@ -87,18 +101,23 @@ def fetch_reddit_posts(queries, subreddits, output_dir: Path, reddit_cfg):
                         continue
                     seen_post_keys.add(post_key)
 
-                    all_items.append({
-                        "id": post.id,
-                        "author": post.author.name,
-                        "title": post.title,
-                        "selftext": post.selftext,
-                        "subreddit": post.subreddit.display_name,
-                        "query": q,
-                        "score": post.score,
-                        "url": post.url,
-                        "created_utc": post.created_utc,
-                        "type": "post",
-                    })
+                    all_items.append(
+                        {
+                            "id": post.id,
+                            "author": post.author.name,
+                            "title": post.title,
+                            "selftext": post.selftext,
+                            "subreddit": post.subreddit.display_name,
+                            "query": q,
+                            "score": post.score,
+                            "url": post.url,
+                            "created_utc": post.created_utc,
+                            "type": "post",
+                        }
+                    )
+
+                    if len(all_items) % progress_every_n_items == 0:
+                        print(f"[Reddit] Collected {len(all_items)} items so far...", flush=True)
 
                     post.comments.replace_more(limit=0)
                     for comment in post.comments.list():
@@ -107,22 +126,27 @@ def fetch_reddit_posts(queries, subreddits, output_dir: Path, reddit_cfg):
                         if word_count(comment.body) < min_comment_words:
                             continue
 
-                        all_items.append({
-                            "id": comment.id,
-                            "post_id": post.id,
-                            "author": comment.author.name,
-                            "title": "",
-                            "selftext": comment.body,
-                            "subreddit": post.subreddit.display_name,
-                            "query": q,
-                            "score": comment.score,
-                            "url": f"https://reddit.com{comment.permalink}",
-                            "created_utc": comment.created_utc,
-                            "type": "comment",
-                        })
+                        all_items.append(
+                            {
+                                "id": comment.id,
+                                "post_id": post.id,
+                                "author": comment.author.name,
+                                "title": "",
+                                "selftext": comment.body,
+                                "subreddit": post.subreddit.display_name,
+                                "query": q,
+                                "score": comment.score,
+                                "url": f"https://reddit.com{comment.permalink}",
+                                "created_utc": comment.created_utc,
+                                "type": "comment",
+                            }
+                        )
+
+                        if len(all_items) % progress_every_n_items == 0:
+                            print(f"[Reddit] Collected {len(all_items)} items so far...", flush=True)
 
             except Exception as e:
-                print(f"Error on query '{q}' in r/{subreddit}: {e}")
+                print(f"[Reddit] Error on query '{q}' in r/{subreddit}: {e}", flush=True)
 
             time.sleep(sleep_seconds)
 
@@ -135,7 +159,11 @@ def fetch_reddit_posts(queries, subreddits, output_dir: Path, reddit_cfg):
 
     post_count = sum(1 for item in all_items if item.get("type") == "post")
     comment_count = sum(1 for item in all_items if item.get("type") == "comment")
-    print(f"\nSaved {len(all_items)} items ({post_count} posts + {comment_count} comments) to '{output_path}'")
+
+    print(
+        f"[Reddit] Saved {len(all_items)} items ({post_count} posts + {comment_count} comments) to '{output_path}'",
+        flush=True,
+    )
 
 
 def main():
@@ -168,14 +196,14 @@ def main():
     if args.reddit_search_limit is not None:
         reddit_cfg["reddit_search_limit"] = args.reddit_search_limit
 
-    print(f"Loaded {len(queries)} queries and {len(subreddits)} subreddits.")
+    print(f"[Reddit] Loaded {len(queries)} queries and {len(subreddits)} subreddits.", flush=True)
+
     fetch_reddit_posts(
         queries=queries,
         subreddits=subreddits,
         output_dir=output_dir,
         reddit_cfg=reddit_cfg,
     )
-
 
 if __name__ == "__main__":
     main()
