@@ -17,7 +17,7 @@ class LauncherApp:
         self.root.title("Study Sentiment Pipeline Launcher")
         self.root.geometry("980x700")
 
-        self.repo_root = Path(__file__).resolve().parents[1]
+        self.repo_root = Path(__file__).resolve().parent
 
         self.input_dir_var = tk.StringVar(value=str(self.repo_root / "data_input"))
         self.output_dir_var = tk.StringVar(value=str(self.repo_root / "data_output"))
