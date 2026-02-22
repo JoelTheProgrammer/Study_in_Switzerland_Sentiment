@@ -209,7 +209,11 @@ class LauncherApp:
             return
         input_dir, output_dir = dirs
 
-        script = self._find_script(["pipelines/reddit_fetch_posts_with_comments.py", "reddit_fetch_posts_with_comments.py"])
+        script = self._find_script([
+            "reddit/reddit_fetch_posts_with_comments.py",
+            "pipelines/reddit_fetch_posts_with_comments.py",
+            "reddit_fetch_posts_with_comments.py",
+        ])
         if not script:
             return
 

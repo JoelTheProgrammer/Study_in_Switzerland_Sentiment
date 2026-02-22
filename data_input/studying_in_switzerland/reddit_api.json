@@ -2,7 +2,7 @@
   "client_id": "wN5a9YGRPB-WPxlGOdS3vQ",
   "client_secret": "-Ei3oJPinD-K_LGKClYy33e89F9BtA",
   "user_agent": "StudyInSwitzerlandScraper by u/Additional_Pass7295",
-  "reddit_search_limit": 100000,
+  "reddit_search_limit": 10,
   "sleep_seconds": 0.2,
   "min_post_words": 20,
   "min_comment_words": 10,
