@@ -1,0 +1,47 @@
+{
+  "main_topic_label": "studying in Switzerland",
+  "candidate_labels": [
+    "studying in Switzerland",
+    "living in Switzerland",
+    "tourism",
+    "food",
+    "sports",
+    "not about studying"
+  ],
+  "degree_labels": [
+    "bachelor studies",
+    "master studies",
+    "phd studies",
+    "not about university degrees"
+  ],
+  "aspect_labels": [
+    "problems with cost of living or tuition fees",
+    "location and environment of universities",
+    "difficulties with the local language",
+    "job opportunities after graduation",
+    "quality of professors and teaching staff",
+    "no clear aspect mentioned"
+  ],
+  "degree_keywords": {
+    "bachelor studies": ["bachelor", "undergraduate", "bsc", "ba"],
+    "master studies": ["master", "graduate program", "msc", "ma"],
+    "phd studies": ["phd", "doctoral", "doctorate", "dphil"]
+  },
+  "aspect_keywords": {
+    "problems with cost of living or tuition fees": [
+      "tuition", "fee", "fees", "expensive", "cost", "costs", "money", "rent", "housing", "afford", "living expenses", "scholarship", "financial"
+    ],
+    "location and environment of universities": [
+      "location", "city", "place", "campus", "environment", "area", "geneva", "lausanne", "zurich", "bern", "switzerland", "transport", "public transport"
+    ],
+    "difficulties with the local language": [
+      "language", "french", "german", "italian", "english", "learn", "speaking", "understand", "communication", "language barrier"
+    ],
+    "job opportunities after graduation": [
+      "job", "jobs", "work", "employment", "career", "internship", "opportunity", "hiring", "find work", "looking for a job", "career prospects"
+    ],
+    "quality of professors and teaching staff": [
+      "teacher", "teachers", "professor", "professors", "lecturer", "lecturers", "teaching", "staff", "class", "courses", "quality of teaching", "bad professor", "good professor"
+    ]
+  }
+}

@@ -1,10 +1,12 @@
+import json
 import os
-import torch
-from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
 import re
 from collections import Counter
+from pathlib import Path
 
-# Load model + tokenizer from local path
+import torch
+from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipeline
+
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "local_models", "bart_mnli")
 _device = 0 if torch.cuda.is_available() else -1
 
@@ -18,151 +20,171 @@ classifier = pipeline(
     device=_device
 )
 
-# ======================== LABELS ========================
-
-CANDIDATE_LABELS = [
-    "studying in Switzerland",
-    "living in Switzerland",
-    "tourism",
-    "food",
-    "sports",
-    "not about studying"
-]
-
-DEGREE_LABELS = [
-    "bachelor studies",
-    "master studies",
-    "phd studies",
-    "not about university degrees"
-]
-
-ASPECT_LABELS = [
-    "problems with cost of living or tuition fees",
-    "location and environment of universities",
-    "difficulties with the local language",
-    "job opportunities after graduation",
-    "quality of professors and teaching staff",
-    "no clear aspect mentioned"
-]
-
-# ======================== KEYWORDS ========================
-
-DEGREE_KEYWORDS = {
-    "bachelor studies": ["bachelor", "undergraduate", "bsc", "ba"],
-    "master studies": ["master", "graduate program", "msc", "ma"],
-    "phd studies": ["phd", "doctoral", "doctorate", "dphil"],
-}
-
-ASPECT_KEYWORDS = {
-    "high tuition fees or cost of living": [
-        "tuition", "fee", "fees", "expensive", "cost", "costs", "money", "rent", "housing", "afford", "living expenses", "scholarship", "financial"
-    ],
-    "location and environment of universities": [
-        "location", "city", "place", "campus", "environment", "area", "geneva", "lausanne", "zurich", "bern", "switzerland", "transport", "public transport"
-    ],
-    "difficulties with the local language": [
-        "language", "french", "german", "italian", "english", "learn", "speaking", "understand", "communication", "language barrier"
-    ],
-    "job opportunities after graduation": [
-        "job", "jobs", "work", "employment", "career", "internship", "opportunity", "hiring", "find work", "looking for a job", "career prospects"
-    ],
-    "quality of professors and teaching staff": [
-        "teacher", "teachers", "professor", "professors", "lecturer", "lecturers", "teaching", "staff", "class", "courses", "quality of teaching", "bad professor", "good professor"
-    ],
+_CONFIG = {
+    "main_topic_label": "",
+    "candidate_labels": [],
+    "degree_labels": [],
+    "aspect_labels": [],
+    "degree_keywords": {},
+    "aspect_keywords": {},
 }
 
 
+def load_topic_classifier_config(input_dir: str | Path) -> None:
+    input_dir = Path(input_dir)
+    cfg_path = input_dir / "topic_classifier_config.json"
 
-# ======================== DETECTION FUNCTIONS ========================
+    if not cfg_path.exists():
+        raise FileNotFoundError(f"Missing file: {cfg_path}")
 
-def is_about_studying_in_switzerland(text: str, threshold: float = 0.5) -> bool:
-    """Checks if the text is about studying in Switzerland using zero-shot classification."""
-    result = classifier(text, candidate_labels=CANDIDATE_LABELS)
+    with open(cfg_path, "r", encoding="utf-8") as f:
+        cfg = json.load(f)
+
+    required_keys = [
+        "main_topic_label",
+        "candidate_labels",
+        "degree_labels",
+        "aspect_labels",
+        "degree_keywords",
+        "aspect_keywords",
+    ]
+    missing = [k for k in required_keys if k not in cfg]
+    if missing:
+        raise ValueError(f"topic_classifier_config.json missing keys: {missing}")
+
+    _CONFIG["main_topic_label"] = cfg["main_topic_label"]
+    _CONFIG["candidate_labels"] = cfg["candidate_labels"]
+    _CONFIG["degree_labels"] = cfg["degree_labels"]
+    _CONFIG["aspect_labels"] = cfg["aspect_labels"]
+    _CONFIG["degree_keywords"] = cfg["degree_keywords"]
+    _CONFIG["aspect_keywords"] = cfg["aspect_keywords"]
+
+
+def _ensure_config_loaded() -> None:
+    if not _CONFIG["candidate_labels"]:
+        raise RuntimeError(
+            "Topic classifier config is not loaded. "
+            "Call load_topic_classifier_config(input_dir) before using classifier functions."
+        )
+
+
+def is_about_main_topic(text: str, threshold: float = 0.5) -> bool:
+    _ensure_config_loaded()
+
+    result = classifier(text, candidate_labels=_CONFIG["candidate_labels"])
+    main_label = _CONFIG["main_topic_label"]
+
     for label, score in zip(result["labels"], result["scores"]):
-        if label == "studying in Switzerland" and score >= threshold:
+        if label == main_label and score >= threshold:
             return True
     return False
 
 
-# ===== DEGREE DETECTION (HYBRID) =====
+def is_about_degree(text: str, degree_label: str, threshold: float = 0.5) -> bool:
+    _ensure_config_loaded()
 
-def is_about_bachelor(text: str, threshold: float = 0.5) -> bool:
     text_lower = text.lower()
-    if any(kw in text_lower for kw in DEGREE_KEYWORDS["bachelor studies"]):
-        return True
-    result = classifier(text, candidate_labels=DEGREE_LABELS)
-    return any(label == "bachelor studies" and score >= threshold for label, score in zip(result["labels"], result["scores"]))
+    degree_keywords = _CONFIG["degree_keywords"]
 
-def is_about_master(text: str, threshold: float = 0.5) -> bool:
-    text_lower = text.lower()
-    if any(kw in text_lower for kw in DEGREE_KEYWORDS["master studies"]):
+    if degree_label in degree_keywords and any(kw in text_lower for kw in degree_keywords[degree_label]):
         return True
-    result = classifier(text, candidate_labels=DEGREE_LABELS)
-    return any(label == "master studies" and score >= threshold for label, score in zip(result["labels"], result["scores"]))
 
-def is_about_phd(text: str, threshold: float = 0.5) -> bool:
-    text_lower = text.lower()
-    if any(kw in text_lower for kw in DEGREE_KEYWORDS["phd studies"]):
-        return True
-    result = classifier(text, candidate_labels=DEGREE_LABELS)
-    return any(label == "phd studies" and score >= threshold for label, score in zip(result["labels"], result["scores"]))
+    result = classifier(text, candidate_labels=_CONFIG["degree_labels"])
+    return any(
+        label == degree_label and score >= threshold
+        for label, score in zip(result["labels"], result["scores"])
+    )
+
 
 def get_most_likely_degree(text: str, threshold: float = 0.5) -> str:
-    """Returns the most likely degree (bachelor, master, phd) using keywords first, then zero-shot classification."""
+    _ensure_config_loaded()
+
     text_lower = text.lower()
-    for degree, keywords in DEGREE_KEYWORDS.items():
+
+    for degree_label, keywords in _CONFIG["degree_keywords"].items():
         if any(kw in text_lower for kw in keywords):
-            return degree
+            return degree_label
 
-    result = classifier(text, candidate_labels=DEGREE_LABELS)
-    return result["labels"][0] if result["scores"][0] >= threshold else "unknown"
+    result = classifier(text, candidate_labels=_CONFIG["degree_labels"])
+    if result["scores"][0] >= threshold:
+        return result["labels"][0]
+    return "unknown"
 
 
-# ===== ASPECT DETECTION (HYBRID) =====
+def get_main_aspect(text: str, threshold: float = 0.2) -> str:
+    _ensure_config_loaded()
 
-def get_main_aspect_mentioned(text: str, threshold: float = 0.2) -> str:
-    """
-    Detects the main aspect mentioned in text.
-    - Step 1: Expanded keyword search on the whole text and per sentence.
-    - Step 2: Zero-shot classification on sentences, voting for the most common.
-    - Step 3: Returns the aspect with the highest votes or confidence.
-    """
     if not text or len(text.strip()) < 5:
         return "unknown"
 
     text_lower = text.lower()
+    aspect_keywords = _CONFIG["aspect_keywords"]
 
-    # --- Step 1: Keyword search in full text ---
-    for aspect, keywords in ASPECT_KEYWORDS.items():
+    for aspect_label, keywords in aspect_keywords.items():
         if any(kw in text_lower for kw in keywords):
-            return aspect
+            return aspect_label
 
-    # --- Step 2: Sentence splitting ---
     sentences = re.split(r"[.!?]\s+", text.strip())
     sentences = [s for s in sentences if len(s) > 5]
 
-    # --- Step 3: Keyword matching per sentence ---
-    for s in sentences:
-        s_lower = s.lower()
-        for aspect, keywords in ASPECT_KEYWORDS.items():
+    for sentence in sentences:
+        s_lower = sentence.lower()
+        for aspect_label, keywords in aspect_keywords.items():
             if any(kw in s_lower for kw in keywords):
-                return aspect
+                return aspect_label
 
-    # --- Step 4: Zero-shot classification with voting ---
     votes = Counter()
     best_label = "unknown"
     best_score = 0.0
 
-    for s in sentences:
-        result = classifier(s, candidate_labels=ASPECT_LABELS)
-        label, score = result["labels"][0], result["scores"][0]
+    for sentence in sentences:
+        result = classifier(sentence, candidate_labels=_CONFIG["aspect_labels"])
+        label = result["labels"][0]
+        score = result["scores"][0]
 
         if score >= threshold:
             votes[label] += score
             if score > best_score:
-                best_label, best_score = label, score
+                best_label = label
+                best_score = score
 
-    # --- Step 5: Return most voted label ---
     if votes:
         return max(votes, key=votes.get)
     return best_label
+
+
+def get_topic_labels() -> list[str]:
+    _ensure_config_loaded()
+    return list(_CONFIG["candidate_labels"])
+
+
+def get_degree_labels() -> list[str]:
+    _ensure_config_loaded()
+    return list(_CONFIG["degree_labels"])
+
+
+def get_aspect_labels() -> list[str]:
+    _ensure_config_loaded()
+    return list(_CONFIG["aspect_labels"])
+
+
+# Optional compatibility wrappers so old code keeps working during migration
+
+def is_about_studying_in_switzerland(text: str, threshold: float = 0.5) -> bool:
+    return is_about_main_topic(text, threshold=threshold)
+
+
+def is_about_bachelor(text: str, threshold: float = 0.5) -> bool:
+    return is_about_degree(text, "bachelor studies", threshold=threshold)
+
+
+def is_about_master(text: str, threshold: float = 0.5) -> bool:
+    return is_about_degree(text, "master studies", threshold=threshold)
+
+
+def is_about_phd(text: str, threshold: float = 0.5) -> bool:
+    return is_about_degree(text, "phd studies", threshold=threshold)
+
+
+def get_main_aspect_mentioned(text: str, threshold: float = 0.2) -> str:
+    return get_main_aspect(text, threshold=threshold)

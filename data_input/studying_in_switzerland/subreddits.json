@@ -1,0 +1,48 @@
+{
+  "general": [
+    "studyabroad",
+    "studyinswitzerland",
+    "studyineurope",
+    "erasmus",
+    "university",
+    "indians_studyabroad",
+    "cscareerquestionseu",
+    "languagelearning",
+    "askeurope",
+    "askacademia",
+    "internationalstudents",
+    "engineeringstudents",
+    "mba",
+    "phd"
+  ],
+  "swiss": [
+    "switzerland",
+    "askswitzerland",
+    "schwiiz",
+    "zurich",
+    "basel",
+    "bern",
+    "suisse",
+    "geneva",
+    "lausanne",
+    "svizzera",
+    "ticino",
+    "ethz",
+    "uzh",
+    "epfl"
+  ],
+  "language_culture": [
+    "de",
+    "germany",
+    "german",
+    "frankfurt",
+    "munich",
+    "france",
+    "paris",
+    "lyon",
+    "italy",
+    "torino",
+    "austria",
+    "francophonie"
+  ]
+}
