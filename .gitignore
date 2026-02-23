@@ -1,5 +1,6 @@
 # Ignore the data directory
 data/
+raw/
 
 # Ignore model folders
 local_model/
@@ -8,3 +9,5 @@ local_models/
 # Ignore caches
 __pycache__/
 .pytest_cache/
+
+data_output/**/preprocessed/processed_posts.json
