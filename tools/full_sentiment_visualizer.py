@@ -74,7 +74,33 @@ class FullSentimentApp:
             self.root.after(100, self.root.destroy)
             return
 
-        self.data = pd.read_csv(self.csv_path)
+        try:
+            self.data = pd.read_csv(self.csv_path)
+        except Exception as e:
+            messagebox.showerror("Read error", f"Could not read CSV:\n{self.csv_path}\n\n{e}")
+            self.root.after(100, self.root.destroy)
+            return
+
+        required_cols = {
+            "is_about_study",
+            "type",
+            "author",
+            "title",
+            "selftext",
+            "created_utc",
+            "lang",
+            "sentiment_majority",
+            "main_aspect",
+            "degree_type",
+        }
+        missing_cols = sorted(c for c in required_cols if c not in self.data.columns)
+        if missing_cols:
+            messagebox.showerror(
+                "Missing columns",
+                "The final CSV is missing required columns:\n\n" + "\n".join(missing_cols),
+            )
+            self.root.after(100, self.root.destroy)
+            return
 
         self.allow_dupes = tk.BooleanVar(value=True)
         self.allow_multi_author = tk.BooleanVar(value=True)
@@ -112,6 +138,7 @@ class FullSentimentApp:
     def run_analysis(self):
         try:
             lang_order = [l.strip() for l in self.lang_entry.get().split(",") if l.strip()]
+
             filtered = filter_data(
                 self.data.copy(),
                 allow_duplicates=self.allow_dupes.get(),
@@ -119,7 +146,7 @@ class FullSentimentApp:
                 lang_order=lang_order,
                 sort_order=self.sort_by.get(),
                 prioritize=self.priority.get(),
-                source_mode=self.source_mode.get()
+                source_mode=self.source_mode.get(),
             )
 
             if filtered.empty:
@@ -137,7 +164,10 @@ class FullSentimentApp:
             def weighted_counter(df, field):
                 counts = Counter()
                 for _, row in df.iterrows():
-                    weight = 1.0 if mode in ("Posts", "Comments") else (comment_weight if row["type"] == "comment" else 1.0)
+                    if mode in ("Posts", "Comments"):
+                        weight = 1.0
+                    else:
+                        weight = comment_weight if row["type"] == "comment" else 1.0
                     counts[row.get(field, "UNKNOWN")] += weight
                 return counts
 
@@ -145,22 +175,39 @@ class FullSentimentApp:
             grouped_counts = Counter()
             for lang, count in lang_counts.items():
                 grouped_counts[lang if lang in MAIN_LANGS else "other"] += count
-            plot_pie_chart(f"Language Distribution (n={len(filtered)})", list(grouped_counts.keys()), list(grouped_counts.values()))
+            plot_pie_chart(
+                f"Language Distribution (n={len(filtered)})",
+                list(grouped_counts.keys()),
+                list(grouped_counts.values()),
+            )
 
             for lang in MAIN_LANGS + ["other"]:
                 if lang == "other":
                     subset = filtered[(~filtered["lang"].isin(MAIN_LANGS)) & (filtered["lang"] != "unknown")]
                 else:
                     subset = filtered[filtered["lang"] == lang]
+
                 if not subset.empty:
                     sent_counts = weighted_counter(subset, "sentiment_majority")
-                    plot_pie_chart(f"Sentiment in {lang} (n={len(subset)})", list(sent_counts.keys()), list(sent_counts.values()))
+                    plot_pie_chart(
+                        f"Sentiment in {lang} (n={len(subset)})",
+                        list(sent_counts.keys()),
+                        list(sent_counts.values()),
+                    )
 
             reason_counts = weighted_counter(filtered, "main_aspect")
-            plot_pie_chart(f"Main Aspect Mentioned (n={len(filtered)})", list(reason_counts.keys()), list(reason_counts.values()))
+            plot_pie_chart(
+                f"Main Aspect Mentioned (n={len(filtered)})",
+                list(reason_counts.keys()),
+                list(reason_counts.values()),
+            )
 
             degree_counts = weighted_counter(filtered, "degree_type")
-            plot_pie_chart(f"Degree Type Mentioned (n={len(filtered)})", list(degree_counts.keys()), list(degree_counts.values()))
+            plot_pie_chart(
+                f"Degree Type Mentioned (n={len(filtered)})",
+                list(degree_counts.keys()),
+                list(degree_counts.values()),
+            )
 
             breakdown = defaultdict(lambda: defaultdict(lambda: Counter()))
             for _, row in filtered.iterrows():
@@ -168,8 +215,13 @@ class FullSentimentApp:
                 lang = lang if lang in MAIN_LANGS else "other"
                 aspect = row.get("main_aspect", "unknown")
                 sent = row.get("sentiment_majority", "UNKNOWN")
-                w = 1.0 if mode in ("Posts", "Comments") else (comment_weight if row["type"] == "comment" else 1.0)
-                breakdown[lang][aspect][sent] += w
+
+                if mode in ("Posts", "Comments"):
+                    weight = 1.0
+                else:
+                    weight = comment_weight if row["type"] == "comment" else 1.0
+
+                breakdown[lang][aspect][sent] += weight
 
             for lang, aspects in breakdown.items():
                 plot_stacked_bar(f"Aspect × Sentiment for {lang}", aspects)
@@ -179,6 +231,7 @@ class FullSentimentApp:
                 for asp, sents in aspects.items():
                     for sent, val in sents.items():
                         global_aspects[asp][sent] += val
+
             plot_stacked_bar("Aspect × Sentiment (All Languages Combined)", global_aspects)
 
         except Exception as e:
@@ -193,8 +246,10 @@ def main():
     output_dir = Path(args.output_dir).resolve()
     csv_path = output_dir / "final" / "final_posts.csv"
 
+    print(f"[Visualizer] Opening dashboard with file: {csv_path}", flush=True)
+
     root = tk.Tk()
-    app = FullSentimentApp(root, csv_path)
+    FullSentimentApp(root, csv_path)
     root.mainloop()
 
 
